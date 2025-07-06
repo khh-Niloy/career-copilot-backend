@@ -1,8 +1,8 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-// import multer from "multer";
-// import FormData from "form-data";
-// import axios from "axios";
+import multer from "multer";
+import FormData from "form-data";
+import axios from "axios";
 
 export const app = express();
 app.use(
@@ -15,37 +15,58 @@ app.use(
 // const upload = multer({ dest: "uploads/" });
 
 // RAM process -> not saving
-// const storage = multer.memoryStorage();
-// const upload = multer({ storage: storage });
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
-// interface MulterRequest extends Request {
-// file: Express.Multer.File;
-// }
+interface MulterRequest extends Request {
+  file: Express.Multer.File;
+}
 
-// app.post("/pdf-to-text", upload.single("pdf"), async (req, res: Response) => {
-// const reqWithFile = req as MulterRequest;
+app.post(
+  "/api/resume/jobdes",
+  upload.single("pdf"),
+  async (req, res: Response) => {
+    const reqWithFile = req as MulterRequest;
+    const jobDescription = req.body.jobDescription;
 
-// ROM process -> saving
-// const file = reqWithFile.file;
-// const buffer = fs.readFileSync(file.path);
+    console.log(reqWithFile.file);
 
-// RAM process -> not saving
-// const pdfBuffer = reqWithFile.file.buffer;
-// const pdfText = await pdfParse(buffer);
+    // ROM process -> saving
+    // const file = reqWithFile.file;
+    // const buffer = fs.readFileSync(file.path);
 
-// const formData = new FormData();
-// formData.append("pdf", pdfBuffer, "resume.pdf");
-// const response = await axios.post("http://localhost:9000/extract", formData, {
-//   headers: formData.getHeaders(),
-// });
+    // RAM process -> not saving
+    const pdfBuffer = reqWithFile.file.buffer;
+    // const pdfText = await pdfParse(buffer);
 
-// const extractedData = response?.data;
+    const formData = new FormData();
+    formData.append("pdf", pdfBuffer, "resume.pdf");
+    const response = await axios.post(
+      "http://localhost:9000/api/pdf/extract",
+      formData,
+      {
+        headers: formData.getHeaders(),
+      }
+    );
+    // try {
+    //   const response = await axios.post(
+    //     "http://localhost:9000/api/pdf/extract",
+    //     pdfBuffer
+    //   );
+    const resumeContent = response?.data?.text;
+    const links = response?.data?.links;
+    console.log(resumeContent, links);
 
-// console.log(extractedData);
+    //* Gemini api
 
-// console.log(pdfText.text);
-// res.json({ text: extractedData?.text, links: extractedData?.links });
-// });
+    // } catch (error) {
+    //   console.log(error);
+    // }
+
+    // console.log(pdfText.text);
+    // res.json({ text: extractedData?.text, links: extractedData?.links });
+  }
+);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("welcome to career copilot backend");
