@@ -11,6 +11,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google-cloud/aiplatform": "^4.2.0",
+    "@google-cloud/vertexai": "^1.10.0",
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.10.0",
     "cors": "^2.8.5",
     "dotenv": "^17.0.1",
@@ -22,10 +25,13 @@
     "pdfjs-dist": "^5.3.31"
   },
   "devDependencies": {
+    "@google/genai": "^1.8.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/multer": "^2.0.0",
+    "@types/node": "^24.0.10",
     "@types/pdf-parse": "^1.1.5",
+    "mime": "^4.0.7",
     "typescript": "^5.8.3"
   }
 }
