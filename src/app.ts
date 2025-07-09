@@ -4,6 +4,8 @@ import cors from "cors";
 import multer from "multer";
 import FormData from "form-data";
 import axios from "axios";
+import nodemailer from "nodemailer";
+
 // import { GoogleGenerativeAI } from "@google/generative-ai";
 // const { PredictionServiceClient } = require("@google-cloud/aiplatform").v1;
 
@@ -20,6 +22,7 @@ app.use(
     origin: "http://localhost:3000",
   })
 );
+app.use(express.json());
 
 // ROM process -> saving
 // const upload = multer({ dest: "uploads/" });
@@ -39,7 +42,7 @@ app.post(
     const reqWithFile = req as MulterRequest;
     const jobDescription = req.body.jobDescription;
 
-    console.log(jobDescription);
+    // console.log(jobDescription);
     console.log(reqWithFile.file);
 
     // //* ROM process -> saving
@@ -70,7 +73,10 @@ app.post(
       // console.log(formattedLinks);
 
       const prompt = `Based on my ${resumeContent} and ${formattedLinks} and the uploaded ${jobDescription}, write a short, professional, engaging and tailored email body to apply for the role [ find what job role mentioned in the ${jobDescription}, if multiple mentioned then leave like this (insert your job role) ]. The email should include:
-          1. If the ${jobDescription} specifies how the email subject line should be formatted, follow that exactly. 
+        
+        0. find the email that user will sent to for job application, searhc in the ${jobDescription}.
+      
+        1. If the ${jobDescription} specifies how the email subject line should be formatted, follow that exactly. 
           Otherwise, write a clear and professional subject line including my name and the job role I’m applying for.
           
           2. A short, friendly  greeting
@@ -92,11 +98,13 @@ app.post(
 
           7. Note that resume is attached and links of my portfolio/GitHub, you can find from here: ${resumeContent} and ${formattedLinks}. resume, github, portfolio
           8. A polite thank you and closing with my contact info (number and linkedin), you can find from here: ${resumeContent}
+          9. give a solid with loyal and direct suggetion based on resume content and job description, Max 20 words! dont exceed this length!
 
           The email should be short, impactful, and respectful of the hiring team’s time or reader’s time — no fluff, no unnecessary lines. Make sure it sounds confident but humble. Avoid generic phrases—make it feel like a real person wrote it, not a template
 
           NOTE: i need exactly this JSON formate: 
-          {
+          { 
+            email: "" (If you dont find out any email where user will appy in that job description, then then give this string -> "not mentioned")
             subjectLine: "",
             greeting: "",
             introduction: "",
@@ -112,6 +120,7 @@ app.post(
               closing: "",
               contacts: {}
             },
+            aiSuggetion: ""
           }
 
     `;
@@ -168,14 +177,107 @@ app.post(
         }
         res.send({
           aiGeneratedText: JSON.parse(finalText),
+          pdfBuffer: pdfBuffer.toString("base64"),
           status: 200,
         });
       }
 
       geminiAi();
     } catch (error) {
-      console.log(error);
+      console.log(error.response?.data);
+      res.json({
+        error: JSON.parse(error?.ApiError),
+      });
     }
+  }
+);
+
+app.post(
+  "/api/premium/apply",
+  upload.single("pdf"),
+  async (req, res: Response) => {
+    const reqWithFile = req as MulterRequest;
+    const pdfBuffer = reqWithFile.file.buffer;
+    const emailBody = JSON.parse(req?.body?.emailBody);
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    // 3. Mail options
+    const mailOptions = {
+      from: emailBody?.currentUserEmail,
+      to: emailBody?.email,
+      subject: emailBody?.subjectLine,
+      html: `
+    <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
+      <p>${emailBody?.greeting}</p>
+      <p>${emailBody?.introduction}</p>
+      <p>${emailBody?.technicalSkills}</p>
+
+      ${
+        emailBody?.projects?.length > 0
+          ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
+              ${emailBody.projects
+                .map(
+                  (e) =>
+                    `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
+                )
+                .join("")}
+            </div>`
+          : ""
+      }
+
+      <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
+
+      ${
+        emailBody?.attachementsAndLinks?.length > 0
+          ? `<div style="margin-top: 16px;">
+              ${emailBody.attachementsAndLinks
+                .map(
+                  (item) =>
+                    `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
+                )
+                .join("")}
+            </div>`
+          : ""
+      }
+
+      <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
+
+      <div style="margin-top: 12px;">
+        <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
+        <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
+        ${
+          emailBody?.closingAndContact?.contacts?.linkedin
+            ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
+            : ""
+        }
+      </div>
+    </div>
+  `,
+      attachments: [
+        {
+          filename: "resume.pdf",
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        },
+      ],
+    };
+
+    // 4. Send the email
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("❌ Error:", error);
+      } else {
+        console.log("✅ Email sent:", info.response);
+        res.send(info.response);
+      }
+    });
   }
 );
 
