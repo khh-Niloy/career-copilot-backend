@@ -4,7 +4,11 @@ import cors from "cors";
 import multer from "multer";
 import FormData from "form-data";
 import axios from "axios";
-import nodemailer from "nodemailer";
+import { google } from "googleapis";
+// import session from "express-session";
+
+// import nodemailer from "nodemailer";
+// import Resend from 'resend';
 
 // import { GoogleGenerativeAI } from "@google/generative-ai";
 // const { PredictionServiceClient } = require("@google-cloud/aiplatform").v1;
@@ -12,6 +16,8 @@ import nodemailer from "nodemailer";
 // const { GoogleGenerativeAI } = require("@google/genai");
 // import GoogleGenerativeAI from "@google/genai";
 import { GoogleGenAI } from "@google/genai";
+import { User } from "./app/model/user";
+// import { oauth2 } from "googleapis/build/src/apis/oauth2";
 
 // const { VertexAI } = require("@google-cloud/vertexai");
 // const path = require("path");
@@ -23,6 +29,15 @@ app.use(
   })
 );
 app.use(express.json());
+
+// app.use(
+//   session({
+//     secret: "niloy709", // keep this safe
+//     resave: false,
+//     saveUninitialized: true,
+//     cookie: { secure: false }, // set true if using HTTPS
+//   })
+// );
 
 // ROM process -> saving
 // const upload = multer({ dest: "uploads/" });
@@ -44,6 +59,19 @@ app.post(
 
     // console.log(jobDescription);
     console.log(reqWithFile.file);
+    // ! after getting emailbody i can take my email!
+    const userEmail = "niloy.dev.101@gmail.com";
+    await User.findOneAndUpdate(
+      {
+        email: userEmail,
+      },
+      {
+        $set: {
+          resume: reqWithFile.file,
+        },
+      },
+      { upsert: true, new: true }
+    );
 
     // //* ROM process -> saving
     // // const file = reqWithFile.file;
@@ -192,92 +220,183 @@ app.post(
   }
 );
 
+app.post("/api/premium/check/rftoken", async (req: Request, res: Response) => {
+  const userEmail = req.body;
+  const user = await User.findOne({ email: userEmail.email });
+  console.log(user);
+  // const result = await User.insertOne(userEmail);
+  let isRefTokenExist = false;
+  if (user?.refreshToken) {
+    isRefTokenExist = true;
+  }
+  res.json({
+    isRefTokenExist,
+  });
+});
+
+const oAuth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  "http://localhost:8000/oauth2callback"
+);
+
+app.get("/api/premium/auth/login", (req, res) => {
+  const url = oAuth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent", // force refresh token
+    scope: ["https://www.googleapis.com/auth/gmail.send"],
+  });
+  res.redirect(url);
+});
+
+app.get("/oauth2callback", async (req, res) => {
+  const code = req.query.code;
+  const { tokens } = await oAuth2Client.getToken(code);
+  oAuth2Client.setCredentials(tokens);
+
+  const oauth2 = google.oauth2({
+    version: "v2",
+    auth: oAuth2Client,
+  });
+
+  console.log("oauth2", oauth2);
+  console.log("token", tokens);
+
+  // const { data: userInfo } = await oauth2.userinfo.get();
+  // console.log("userInfo", userInfo);
+
+  // const userEmail = userInfo.email;
+  // console.log("userEmail", userEmail);
+
+  const userEmail = "niloy.dev.101@gmail.com";
+
+  await User.findOneAndUpdate(
+    { email: userEmail },
+    {
+      $set: {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+      },
+    },
+    { upsert: true, new: true }
+  );
+
+  res.redirect("http://localhost:3000/premium/confirmation"); // or wherever your frontend form is
+});
+
 app.post(
   "/api/premium/apply",
-  upload.single("pdf"),
-  async (req, res: Response) => {
-    const reqWithFile = req as MulterRequest;
-    const pdfBuffer = reqWithFile.file.buffer;
-    const emailBody = JSON.parse(req?.body?.emailBody);
+  // upload.single("pdf"),
+  async (req: Request, res: Response) => {
+    // const reqWithFile = req as MulterRequest;
+    // const pdfBuffer = reqWithFile.file.buffer;
+    // const emailBody = JSON.parse(req?.body?.emailBody);
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const { emailBody } = req.body;
+
+    console.log(emailBody.currentUserEmail, emailBody);
+
+    const user = await User.findOne({ email: emailBody.currentUserEmail });
+
+    console.log(user);
+
+    // const token = req.session.tokens;
+
+    // console.log(pdfBuffer, emailBody);
+
+    // const resend = new Resend('your_api_key_here');
+
+    // const transporter = nodemailer.createTransport({
+    //   service: "gmail",
+    //   auth: {
+    //     user: process.env.EMAIL_USER,
+    //     pass: process.env.EMAIL_PASS,
+    //   },
+    // });
 
     // 3. Mail options
-    const mailOptions = {
-      from: emailBody?.currentUserEmail,
-      to: emailBody?.email,
-      subject: emailBody?.subjectLine,
-      html: `
-    <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
-      <p>${emailBody?.greeting}</p>
-      <p>${emailBody?.introduction}</p>
-      <p>${emailBody?.technicalSkills}</p>
+    //   const mailOptions = {
+    //     from: emailBody?.currentUserEmail,
+    //     to: emailBody?.email,
+    //     subject: emailBody?.subjectLine,
+    //     html: `
+    //   <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
+    //     <p>${emailBody?.greeting}</p>
+    //     <p>${emailBody?.introduction}</p>
+    //     <p>${emailBody?.technicalSkills}</p>
 
-      ${
-        emailBody?.projects?.length > 0
-          ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
-              ${emailBody.projects
-                .map(
-                  (e) =>
-                    `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
-                )
-                .join("")}
-            </div>`
-          : ""
-      }
+    //     ${
+    //       emailBody?.projects?.length > 0
+    //         ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
+    //             ${emailBody.projects
+    //               .map(
+    //                 (e) =>
+    //                   `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
+    //               )
+    //               .join("")}
+    //           </div>`
+    //         : ""
+    //     }
 
-      <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
+    //     <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
 
-      ${
-        emailBody?.attachementsAndLinks?.length > 0
-          ? `<div style="margin-top: 16px;">
-              ${emailBody.attachementsAndLinks
-                .map(
-                  (item) =>
-                    `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
-                )
-                .join("")}
-            </div>`
-          : ""
-      }
+    //     ${
+    //       emailBody?.attachementsAndLinks?.length > 0
+    //         ? `<div style="margin-top: 16px;">
+    //             ${emailBody.attachementsAndLinks
+    //               .map(
+    //                 (item) =>
+    //                   `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
+    //               )
+    //               .join("")}
+    //           </div>`
+    //         : ""
+    //     }
 
-      <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
+    //     <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
 
-      <div style="margin-top: 12px;">
-        <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
-        <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
-        ${
-          emailBody?.closingAndContact?.contacts?.linkedin
-            ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
-            : ""
-        }
-      </div>
-    </div>
-  `,
-      attachments: [
-        {
-          filename: "resume.pdf",
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
-    };
+    //     <div style="margin-top: 12px;">
+    //       <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
+    //       <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
+    //       ${
+    //         emailBody?.closingAndContact?.contacts?.linkedin
+    //           ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
+    //           : ""
+    //       }
+    //     </div>
+    //   </div>
+    // `,
+    //     attachments: [
+    //       {
+    //         filename: "resume.pdf",
+    //         content: pdfBuffer,
+    //         contentType: "application/pdf",
+    //       },
+    //     ],
+    //   };
 
     // 4. Send the email
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("❌ Error:", error);
-      } else {
-        console.log("✅ Email sent:", info.response);
-        res.send(info.response);
-      }
-    });
+    // transporter.sendMail(mailOptions, (error, info) => {
+    //   if (error) {
+    //     console.error("❌ Error:", error);
+    //   } else {
+    //     console.log("✅ Email sent:", info.response);
+    //     res.send(info.response);
+    //   }
+    // });
+
+    //   try {
+    //   const response = await resend.emails.send({
+    //     from: 'you@yourdomain.com',    // Your verified sender email
+    //     to: 'recipient@example.com',
+    //     subject: 'Hello from Resend!',
+    //     html: '<p>This is a demo email sent with Resend API.</p>',
+    //   });
+
+    //   console.log('Email sent successfully:', response);
+    // } catch (error) {
+    //   console.error('Error sending email:', error);
+    // }
   }
 );
 
