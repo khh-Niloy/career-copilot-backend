@@ -7,7 +7,7 @@ import axios from "axios";
 import { google } from "googleapis";
 // import session from "express-session";
 
-// import nodemailer from "nodemailer";
+import nodemailer from "nodemailer";
 // import Resend from 'resend';
 
 // import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -226,7 +226,7 @@ app.post("/api/premium/check/rftoken", async (req: Request, res: Response) => {
   console.log(user);
   // const result = await User.insertOne(userEmail);
   let isRefTokenExist = false;
-  if (user?.refreshToken) {
+  if (user?.refresh_token) {
     isRefTokenExist = true;
   }
   res.json({
@@ -244,7 +244,12 @@ app.get("/api/premium/auth/login", (req, res) => {
   const url = oAuth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // force refresh token
-    scope: ["https://www.googleapis.com/auth/gmail.send"],
+    scope: [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://mail.google.com/", // <-- this is full access (optional but strong)
+    ],
   });
   res.redirect(url);
 });
@@ -254,13 +259,24 @@ app.get("/oauth2callback", async (req, res) => {
   const { tokens } = await oAuth2Client.getToken(code);
   oAuth2Client.setCredentials(tokens);
 
-  const oauth2 = google.oauth2({
-    version: "v2",
-    auth: oAuth2Client,
-  });
+  console.log("oauth2callback tokens-> ", tokens);
 
-  console.log("oauth2", oauth2);
-  console.log("token", tokens);
+  // const oauth2 = google.oauth2({
+  //   version: "v2",
+  //   auth: oAuth2Client,
+  // });
+
+  const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
+
+  const profile = await gmail.users.getProfile({ userId: "me" });
+  console.log("oauth2callback profile-> ", profile);
+
+  const userEmail = profile.data.emailAddress;
+  console.log("oauth2callback userEmail-> ", userEmail);
+  console.log("✅ Logged in Gmail:", userEmail);
+
+  // console.log("oauth2", oauth2);
+  // console.log("token", tokens);
 
   // const { data: userInfo } = await oauth2.userinfo.get();
   // console.log("userInfo", userInfo);
@@ -268,13 +284,13 @@ app.get("/oauth2callback", async (req, res) => {
   // const userEmail = userInfo.email;
   // console.log("userEmail", userEmail);
 
-  const userEmail = "niloy.dev.101@gmail.com";
+  // const userEmail = "niloy.dev.101@gmail.com";
 
   await User.findOneAndUpdate(
     { email: userEmail },
     {
       $set: {
-        access_token: tokens.access_token,
+        // access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
       },
     },
@@ -284,121 +300,315 @@ app.get("/oauth2callback", async (req, res) => {
   res.redirect("http://localhost:3000/premium/confirmation"); // or wherever your frontend form is
 });
 
-app.post(
-  "/api/premium/apply",
-  // upload.single("pdf"),
-  async (req: Request, res: Response) => {
-    // const reqWithFile = req as MulterRequest;
-    // const pdfBuffer = reqWithFile.file.buffer;
-    // const emailBody = JSON.parse(req?.body?.emailBody);
+app.post("/api/premium/apply", async (req: Request, res: Response) => {
+  const { emailBody } = req.body;
+  const user = await User.findOne({ email: emailBody.currentUserEmail });
 
-    const { emailBody } = req.body;
+  console.log(user);
 
-    console.log(emailBody.currentUserEmail, emailBody);
-
-    const user = await User.findOne({ email: emailBody.currentUserEmail });
-
-    console.log(user);
-
-    // const token = req.session.tokens;
-
-    // console.log(pdfBuffer, emailBody);
-
-    // const resend = new Resend('your_api_key_here');
-
-    // const transporter = nodemailer.createTransport({
-    //   service: "gmail",
-    //   auth: {
-    //     user: process.env.EMAIL_USER,
-    //     pass: process.env.EMAIL_PASS,
-    //   },
-    // });
-
-    // 3. Mail options
-    //   const mailOptions = {
-    //     from: emailBody?.currentUserEmail,
-    //     to: emailBody?.email,
-    //     subject: emailBody?.subjectLine,
-    //     html: `
-    //   <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
-    //     <p>${emailBody?.greeting}</p>
-    //     <p>${emailBody?.introduction}</p>
-    //     <p>${emailBody?.technicalSkills}</p>
-
-    //     ${
-    //       emailBody?.projects?.length > 0
-    //         ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
-    //             ${emailBody.projects
-    //               .map(
-    //                 (e) =>
-    //                   `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
-    //               )
-    //               .join("")}
-    //           </div>`
-    //         : ""
-    //     }
-
-    //     <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
-
-    //     ${
-    //       emailBody?.attachementsAndLinks?.length > 0
-    //         ? `<div style="margin-top: 16px;">
-    //             ${emailBody.attachementsAndLinks
-    //               .map(
-    //                 (item) =>
-    //                   `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
-    //               )
-    //               .join("")}
-    //           </div>`
-    //         : ""
-    //     }
-
-    //     <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
-
-    //     <div style="margin-top: 12px;">
-    //       <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
-    //       <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
-    //       ${
-    //         emailBody?.closingAndContact?.contacts?.linkedin
-    //           ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
-    //           : ""
-    //       }
-    //     </div>
-    //   </div>
-    // `,
-    //     attachments: [
-    //       {
-    //         filename: "resume.pdf",
-    //         content: pdfBuffer,
-    //         contentType: "application/pdf",
-    //       },
-    //     ],
-    //   };
-
-    // 4. Send the email
-    // transporter.sendMail(mailOptions, (error, info) => {
-    //   if (error) {
-    //     console.error("❌ Error:", error);
-    //   } else {
-    //     console.log("✅ Email sent:", info.response);
-    //     res.send(info.response);
-    //   }
-    // });
-
-    //   try {
-    //   const response = await resend.emails.send({
-    //     from: 'you@yourdomain.com',    // Your verified sender email
-    //     to: 'recipient@example.com',
-    //     subject: 'Hello from Resend!',
-    //     html: '<p>This is a demo email sent with Resend API.</p>',
-    //   });
-
-    //   console.log('Email sent successfully:', response);
-    // } catch (error) {
-    //   console.error('Error sending email:', error);
-    // }
+  if (!user?.refresh_token) {
+    return res.status(400).json({ error: "Refresh token missing for user" });
   }
-);
+
+  const oAuth2Client = new google.auth.OAuth2(
+    process.env.CLIENT_ID,
+    process.env.CLIENT_SECRET
+    // "http://localhost:8000/oauth2callback"
+  );
+  oAuth2Client.setCredentials({
+    refresh_token: user.refresh_token,
+  });
+  const accessToken = (await oAuth2Client.getAccessToken()).token;
+
+  console.log("new", accessToken);
+
+  try {
+    console.log("before transporter");
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        type: "OAuth2",
+        user: emailBody.currentUserEmail,
+        clientId: process.env.CLIENT_ID,
+        clientSecret: process.env.CLIENT_SECRET,
+        refreshToken: user.refresh_token,
+        accessToken, // pass the fresh access token here
+      },
+    });
+
+    // your mailOptions setup here...
+    const senderName = "Hasib Hossain Niloy";
+
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
+        <p>${emailBody?.greeting}</p>
+        <p>${emailBody?.introduction}</p>
+        <p>${emailBody?.technicalSkills}</p>
+
+        ${
+          emailBody?.projects?.length > 0
+            ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
+                ${emailBody.projects
+                  .map(
+                    (e) =>
+                      `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
+                  )
+                  .join("")}
+              </div>`
+            : ""
+        }
+
+        <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
+
+        ${
+          emailBody?.attachementsAndLinks?.length > 0
+            ? `<div style="margin-top: 16px;">
+                ${emailBody.attachementsAndLinks
+                  .map(
+                    (item) =>
+                      `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
+                  )
+                  .join("")}
+              </div>`
+            : ""
+        }
+
+        <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
+
+        <div style="margin-top: 12px;">
+          <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
+          <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
+          ${
+            emailBody?.closingAndContact?.contacts?.linkedin
+              ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
+              : ""
+          }
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `${senderName} <${emailBody.currentUserEmail}>`,
+      to: emailBody?.email,
+      subject: emailBody?.subjectLine,
+      html: htmlBody,
+      // attachments: [
+      //   {
+      //     filename: "resume.pdf",
+      //     content: user?.resume?.buffer,
+      //     contentType: "application/pdf",
+      //   },
+      // ],
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log(result);
+    res.send(result);
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ error: "Failed to send email" });
+  }
+});
+
+// app.post(
+//   "/api/premium/apply",
+//   // upload.single("pdf"),
+//   async (req: Request, res: Response) => {
+//     // const reqWithFile = req as MulterRequest;
+//     // const pdfBuffer = reqWithFile.file.buffer;
+//     // const emailBody = JSON.parse(req?.body?.emailBody);
+
+//     const { emailBody } = req.body;
+
+//     // console.log(emailBody.currentUserEmail, emailBody);
+
+//     const user = await User.findOne({ email: emailBody.currentUserEmail });
+
+//     console.log("Trying to send from:", user.email);
+//     console.log("Refresh Token:", user.refresh_token);
+//     console.log("clientId:", process.env.CLIENT_ID);
+
+//     const transporter = nodemailer.createTransport({
+//       service: "gmail",
+//       auth: {
+//         type: "OAuth2",
+//         user: emailBody.currentUserEmail,
+//         clientId: process.env.CLIENT_ID,
+//         clientSecret: process.env.CLIENT_SECRET,
+//         refreshToken: user?.refresh_token,
+//         // accessToken: user?.access_token,
+//       },
+//     });
+
+//     const senderName = "Hasib Hossain Niloy";
+
+//     const htmlBody = `
+//       <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
+//         <p>${emailBody?.greeting}</p>
+//         <p>${emailBody?.introduction}</p>
+//         <p>${emailBody?.technicalSkills}</p>
+
+//         ${
+//           emailBody?.projects?.length > 0
+//             ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
+//                 ${emailBody.projects
+//                   .map(
+//                     (e) =>
+//                       `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
+//                   )
+//                   .join("")}
+//               </div>`
+//             : ""
+//         }
+
+//         <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
+
+//         ${
+//           emailBody?.attachementsAndLinks?.length > 0
+//             ? `<div style="margin-top: 16px;">
+//                 ${emailBody.attachementsAndLinks
+//                   .map(
+//                     (item) =>
+//                       `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
+//                   )
+//                   .join("")}
+//               </div>`
+//             : ""
+//         }
+
+//         <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
+
+//         <div style="margin-top: 12px;">
+//           <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
+//           <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
+//           ${
+//             emailBody?.closingAndContact?.contacts?.linkedin
+//               ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
+//               : ""
+//           }
+//         </div>
+//       </div>
+//     `;
+
+//     const mailOptions = {
+//       from: `${senderName} <${emailBody.currentUserEmail}>`,
+//       to: emailBody?.email,
+//       subject: emailBody?.subjectLine,
+//       html: htmlBody,
+//       attachments: [
+//         {
+//           filename: "resume.pdf",
+//           content: user?.resume?.buffer,
+//           contentType: "application/pdf",
+//         },
+//       ],
+//     };
+
+//     const result = await transporter.sendMail(mailOptions);
+
+//     console.log(result);
+//     res.send(result);
+
+//     // const token = req.session.tokens;
+
+//     // console.log(pdfBuffer, emailBody);
+
+//     // const resend = new Resend('your_api_key_here');
+
+//     // const transporter = nodemailer.createTransport({
+//     //   service: "gmail",
+//     //   auth: {
+//     //     user: process.env.EMAIL_USER,
+//     //     pass: process.env.EMAIL_PASS,
+//     //   },
+//     // });
+
+//     // 3. Mail options
+//     //   const mailOptions = {
+//     //     from: emailBody?.currentUserEmail,
+//     //     to: emailBody?.email,
+//     //     subject: emailBody?.subjectLine,
+//     //     html: `
+//     //   <div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #333;">
+//     //     <p>${emailBody?.greeting}</p>
+//     //     <p>${emailBody?.introduction}</p>
+//     //     <p>${emailBody?.technicalSkills}</p>
+
+//     //     ${
+//     //       emailBody?.projects?.length > 0
+//     //         ? `<div style="margin-top: 16px;"><strong>My Key Projects:</strong><br />
+//     //             ${emailBody.projects
+//     //               .map(
+//     //                 (e) =>
+//     //                   `<p style="margin: 4px 0;"><strong>${e.projectName}</strong>: <a href="${e.liveSite}" style="color: #2563eb;">${e.liveSite}</a></p>`
+//     //               )
+//     //               .join("")}
+//     //           </div>`
+//     //         : ""
+//     //     }
+
+//     //     <p>${emailBody?.fitInterestAndWillingnessToLearn}</p>
+
+//     //     ${
+//     //       emailBody?.attachementsAndLinks?.length > 0
+//     //         ? `<div style="margin-top: 16px;">
+//     //             ${emailBody.attachementsAndLinks
+//     //               .map(
+//     //                 (item) =>
+//     //                   `<div style="margin-bottom: 4px;"><strong>${item.name}:</strong> <a href="${item.links}" style="color: #2563eb;">${item.links}</a></div>`
+//     //               )
+//     //               .join("")}
+//     //           </div>`
+//     //         : ""
+//     //     }
+
+//     //     <p style="margin-top: 20px;">${emailBody?.closingAndContact?.closing}</p>
+
+//     //     <div style="margin-top: 12px;">
+//     //       <p><strong>${emailBody?.closingAndContact?.contacts?.name}</strong></p>
+//     //       <p>${emailBody?.closingAndContact?.contacts?.phone}</p>
+//     //       ${
+//     //         emailBody?.closingAndContact?.contacts?.linkedin
+//     //           ? `<p>LinkedIn: <a href="${emailBody?.closingAndContact?.contacts?.linkedin}" style="color: #2563eb;">${emailBody?.closingAndContact?.contacts?.linkedin}</a></p>`
+//     //           : ""
+//     //       }
+//     //     </div>
+//     //   </div>
+//     // `,
+//     //     attachments: [
+//     //       {
+//     //         filename: "resume.pdf",
+//     //         content: pdfBuffer,
+//     //         contentType: "application/pdf",
+//     //       },
+//     //     ],
+//     //   };
+
+//     // 4. Send the email
+//     // transporter.sendMail(mailOptions, (error, info) => {
+//     //   if (error) {
+//     //     console.error("❌ Error:", error);
+//     //   } else {
+//     //     console.log("✅ Email sent:", info.response);
+//     //     res.send(info.response);
+//     //   }
+//     // });
+
+//     //   try {
+//     //   const response = await resend.emails.send({
+//     //     from: 'you@yourdomain.com',    // Your verified sender email
+//     //     to: 'recipient@example.com',
+//     //     subject: 'Hello from Resend!',
+//     //     html: '<p>This is a demo email sent with Resend API.</p>',
+//     //   });
+
+//     //   console.log('Email sent successfully:', response);
+//     // } catch (error) {
+//     //   console.error('Error sending email:', error);
+//     // }
+//   }
+// );
 
 app.get("/", (req: Request, res: Response) => {
   res.send("welcome to career copilot backend");
