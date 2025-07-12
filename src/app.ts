@@ -59,23 +59,10 @@ app.post(
 
     // console.log(jobDescription);
     console.log(reqWithFile.file);
-    // ! after getting emailbody i can take my email!
-    const userEmail = "niloy.dev.101@gmail.com";
-    await User.findOneAndUpdate(
-      {
-        email: userEmail,
-      },
-      {
-        $set: {
-          resume: reqWithFile.file,
-        },
-      },
-      { upsert: true, new: true }
-    );
 
     // //* ROM process -> saving
-    // // const file = reqWithFile.file;
-    // // const buffer = fs.readFileSync(file.path);
+    // const file = reqWithFile.file;
+    // const buffer = fs.readFileSync(file.path);
 
     // //* RAM process -> not saving
     const pdfBuffer = reqWithFile.file.buffer;
@@ -92,6 +79,20 @@ app.post(
       );
       const resumeContent = response?.data?.text;
       const links = response?.data?.links;
+
+      // ! after getting emailbody i can take my email!
+      // const userEmail = "niloy.dev.101@gmail.com";
+      // await User.findOneAndUpdate(
+      //   {
+      //     email: userEmail,
+      //   },
+      //   {
+      //     $set: {
+      //       resume: reqWithFile.file,
+      //     },
+      //   },
+      //   { upsert: true, new: true }
+      // );
 
       // console.log(links);
 
@@ -148,7 +149,8 @@ app.post(
               closing: "",
               contacts: {}
             },
-            aiSuggetion: ""
+            aiSuggetion: "",
+            myEmail: "" (please put here my email!)
           }
 
     `;
@@ -203,9 +205,10 @@ app.post(
             finalText += chunkText;
           }
         }
+        console.log(finalText);
         res.send({
           aiGeneratedText: JSON.parse(finalText),
-          pdfBuffer: pdfBuffer.toString("base64"),
+          // pdfBuffer: pdfBuffer.toString("base64"),
           status: 200,
         });
       }
