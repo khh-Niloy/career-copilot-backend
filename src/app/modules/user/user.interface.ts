@@ -6,7 +6,7 @@ export enum IsActive {
   BLOCKED = "BLOCKED",
 }
 
-interface IauthProvider {
+export interface IauthProvider {
   provider: string;
   providerId: string;
 }
