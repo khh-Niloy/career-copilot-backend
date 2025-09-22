@@ -26,7 +26,8 @@
     "nodemon": "^3.1.10",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.3.31",
-    "resend": "^4.6.0"
+    "resend": "^4.6.0",
+    "ts-node-dev": "^2.0.0"
   },
   "devDependencies": {
     "@google/genai": "^1.8.0",

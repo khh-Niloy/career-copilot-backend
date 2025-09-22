@@ -12,13 +12,16 @@ export interface IauthProvider {
 }
 
 export interface IUser {
-  name: string;
+  name?: string;
   email: string;
   password?: string;
+  resumeFile?: Object;
   address?: string;
   isProUser?: boolean;
   isDeleted?: boolean;
+  isVerified?: boolean;
   IsActive?: IsActive;
+  refreshToken?:String,
   auths?: IauthProvider[];
   resume?: Types.ObjectId[];
   jobApplication?: Types.ObjectId[];
