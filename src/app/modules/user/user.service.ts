@@ -3,6 +3,7 @@ import axios from "axios";
 import { Request } from "express";
 import { promptGemini } from "./user.prompt";
 import FormData from "form-data";
+import { User } from "./user.model";
 
 interface MulterRequest extends Request {
   file: Express.Multer.File;
@@ -11,6 +12,8 @@ interface MulterRequest extends Request {
 const createEmailBodyService = async (req: Request) => {
   const reqWithFile = req as MulterRequest;
   const jobDescription = req.body.jobDescription;
+
+  console.log(jobDescription)
 
   // console.log(jobDescription);
   console.log(reqWithFile.file);
@@ -105,8 +108,21 @@ const createEmailBodyService = async (req: Request) => {
     return finalText;
   }
 
-  return geminiAi();
+  const ai = await geminiAi()
+
+  const email = JSON.parse(ai).myEmail
+
+  // console.log(email)
+
+  const createUser = await User.create({
+    email: email,
+    resumeFile: reqWithFile.file
+  })
+
+  return ai;
 };
+
+
 
 export const userServices = {
   createEmailBodyService,

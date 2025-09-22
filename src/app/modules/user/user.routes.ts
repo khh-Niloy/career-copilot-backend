@@ -4,8 +4,15 @@ import { upload } from "../../middleware/user.multer.middlware";
 
 export const userRouter = Router();
 
+userRouter.get("/test", (req, res) => {
+  console.log("✅ /user/test reached");
+  res.send("User test route working");
+});
+
+
 userRouter.post(
   "/email-body",
   upload.single("pdf"),
   userController.createEmailBody
 );
+

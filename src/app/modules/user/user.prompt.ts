@@ -1,7 +1,7 @@
 export const promptGemini = (resumeContent, jobDescription, formattedLinks) => {
   const prompt = `Based on my ${resumeContent} and ${formattedLinks} and the uploaded ${jobDescription}, write a short, professional, engaging and tailored email body to apply for the role [ find what job role mentioned in the ${jobDescription}, if multiple mentioned then leave like this (insert your job role) ]. The email should include:
         
-        0. find the email that user will sent to for job application, searhc in the ${jobDescription}.
+        0. find the email that user will sent to for job application IMPORTANT, searhc in the ${jobDescription}.
       
         1. If the ${jobDescription} specifies how the email subject line should be formatted, follow that exactly. 
           Otherwise, write a clear and professional subject line including my name and the job role I’m applying for.
@@ -31,7 +31,7 @@ export const promptGemini = (resumeContent, jobDescription, formattedLinks) => {
 
           NOTE: i need exactly this JSON formate: 
           { 
-            email: "" (If you dont find out any email where user will appy in that job description, then then give this string -> "not mentioned")
+            email: "" (please, add email where the email need to sent for apply! you can search where said send email to and then a email attached, can be bottom or middle. but If you dont find out any email where user will appy in that job description, then then give this string -> "not mentioned")
             subjectLine: "",
             greeting: "",
             introduction: "",
@@ -48,7 +48,7 @@ export const promptGemini = (resumeContent, jobDescription, formattedLinks) => {
               contacts: {}
             },
             aiSuggetion: "",
-            myEmail: "" (please put here my email!)
+            myEmail: "" (please put here my email! the email of the candidate!)
           }
 
     `;
